@@ -133,9 +133,14 @@ module.exports = (robot) ->
       # creating a set just so that we can list all logs 
       # for a room.
       client.keys "logs:#{req.params.room}:*", (err, replies) ->
+        days = []
         for key in replies
           key = key.slice key.lastIndexOf(':')+1, key.length
-          res.write "<li><a href=\"/logs/#{req.params.room}/#{key}\">#{key}</a></li>\r\n"
+          days.push moment(key, "YYYYMMDD")
+        days.sort (a, b) ->
+            return b.diff(a)
+        days.forEach (date) ->
+          res.write "<li><a href=\"/logs/#{req.params.room}/#{date.format('YYYYMMDD')}\">#{date.format('dddd, MMMM Do YYYY')}</a></li>\r\n"
         res.write "</ul>"
         res.end views.log_view.tail
 
