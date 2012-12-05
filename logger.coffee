@@ -65,11 +65,7 @@ hubot = require "hubot"
 
 # Convenience class to represent a log entry
 class Entry
- constructor: (from, timestamp, type='text', message='') ->
-    @from = from
-    @timestamp = timestamp
-    @type = type
-    @message = message
+ constructor: (@from, @timestamp, @type='text', @message='') ->
 
 redis_server = Url.parse process.env.LOG_REDIS_URL || process.env.REDISTOGO_URL || 'redis://localhost:6379'
 
@@ -94,6 +90,7 @@ module.exports = (robot) ->
   # Override send methods in the Response prototype so that we can log Hubot's replies
   # This is kind of evil, but there doesn't appear to be a better way
   log_response = (room, strings...) ->
+    return unless robot.brain.data.logging[room]?.enabled
     for string in strings
       log_entry client, (new Entry(robot.name, Date.now(), 'text', string)), room
 
@@ -106,7 +103,7 @@ module.exports = (robot) ->
     response_orig.send.call @, strings...
 
   robot.Response.prototype.reply = (strings...) ->
-    response_methods.log @message.user.room, strings...
+    log_response @message.user.room, strings...
     response_orig.reply.call @, strings...
 
   # Setup a very minimalistic Connect server for viewing logs
@@ -184,17 +181,18 @@ module.exports = (robot) ->
   # When we join a room, wait for some activity and notify that we're logging chat
   # unless we're in stealth mode
   robot.hear /.*/, (msg) ->
-    return if process.env.LOG_STEALTH
-    return if msg.match[0] == "#{robot.name} start logging"
-    return if msg.match[0] == "#{robot.name} stop logging"
-    if not (robot.logging[msg.message.user.room]?.notified && robot.brain.data
-                                                              .logging[msg.message.user.room]
-                                                              ?.enabled)
-      msg.send "I'm logging messages in #{msg.message.user.room} at " +
+    room = msg.message.user.room
+    if msg.match[0].match(/(robot.name )?(start|stop) logging*/) or process.env.LOG_STEALTH
+      robot.logging[room].notified = true
+      return
+    robot.logging[room] ||= {}
+    robot.brain.data.logging[room] ||= {}
+    if robot.brain.data.logging[room].enabled and not robot.logging[room].notified
+      msg.send "I'm logging messages in #{room} at " +
                  "http://#{OS.hostname()}:#{process.env.LOG_HTTP_PORT || 8081}/" +
-                 "logs/#{msg.message.user.room}/#{date_id()}\n" +
+                 "logs/#{room}/#{date_id()}\n" +
                  "Say `#{robot.name} stop logging forever' to disable logging indefinitely."
-      robot.logging[msg.message.user.room] = { notified: true }
+      robot.logging[room].notified = true
 
   # Enable logging
   robot.respond /start logging( messages)?$/i, (msg) ->
@@ -425,10 +423,10 @@ get_logs_for_range = (redis, start, end, room, callback) ->
 #   redis - a Redis client object
 #   response - a Response that can be replied to
 enable_logging = (robot, redis, response) ->
-  if robot.brain.data.logging[response.message.user.room]?.enabled
+  robot.brain.data.logging[response.message.user.room] ||= {}
+  if robot.brain.data.logging[response.message.user.room].enabled
     response.reply "Logging is already enabled."
     return
-  robot.brain.data.logging[response.message.user.room] ||= {}
   robot.brain.data.logging[response.message.user.room].enabled = true
   robot.brain.data.logging[response.message.user.room].pause = null
   log_entry(redis, new Entry(robot.name, Date.now(), 'text',
@@ -450,45 +448,51 @@ enable_logging = (robot, redis, response) ->
 #       - a number representing the number of milliseconds until logging should be resumed, or
 #       - 0 or undefined to disable logging indefinitely
 disable_logging = (robot, redis, response, end=0) ->
-  if robot.brain.data.logging[response.message.user.room]?.enabled == false
-    if robot.brain.data.logging.pause
-      pause = robot.brain.data.logging.pause
-      response.reply "Logging was already disabled #{pause.time.fromNow()} by " +
-                     "#{pause.user} until #{pause.end.format()}."
-      return
+  room = response.message.user.room
+  robot.brain.data.logging[room] ||= {}
+
+  # If logging was already disabled
+  if robot.brain.data.logging[room].enabled == false
+    if robot.brain.data.logging[room].pause
+      pause = robot.brain.data.logging[room].pause
+      if pause.time and pause.end and end and end != 0
+        response.reply "Logging was already disabled #{pause.time.fromNow()} by " +
+                       "#{pause.user} until #{pause.end.format()}."
+      else
+        robot.brain.data.logging[room].pause = null
+        response.reply "Logging is currently disabled."
     else
       response.reply "Logging is currently disabled."
-      return
-  robot.brain.data.logging[response.message.user.room] ||= {}
-  robot.brain.data.logging[response.message.user.room].enabled = false
+    return
+
+  # Otherwise, disable it
+  robot.brain.data.logging[room].enabled = false
   if end != 0
     if not end instanceof moment
       if end instanceof Date
         end = moment(end)
       else
         end = moment().add('seconds', parseInt(end))
-    robot.brain.data.logging.pause =
+    robot.brain.data.logging[room].pause =
       time: moment()
       user: response.message.user.name || response.message.user.id || 'unknown'
       end: end
     log_entry(redis, new Entry(robot.name, Date.now(), 'text',
               "#{response.message.user.name || response.message.user.id} disabled logging" +
-              " until #{end.format()}."), response.message.user.room)
+              " until #{end.format()}."), room)
 
     # Re-enable logging after the set amount of time
-    setTimeout (-> enable_logging(robot, redis, response) if not robot.brain.data
-                                                                  .logging[response.message.user.room]
-                                                                  .enabled),
+    setTimeout (-> enable_logging(robot, redis, response) if not robot.brain.data.logging[room].enabled),
                   end.diff(moment())
     response.reply "OK, I'll stop logging until #{end.format()}."
     robot.brain.save()
     return
   log_entry(redis, new Entry(robot.name, Date.now(), 'text',
             "#{response.message.user.name || response.message.user.id} disabled logging indefinitely."), 
-            response.message.user.room)
+            room)
 
   robot.brain.save()
-  msg.reply "OK, I'll stop logging from now on." if msg
+  response.reply "OK, I'll stop logging from now on."
 
 # Logs an Entry object
 # Params:
