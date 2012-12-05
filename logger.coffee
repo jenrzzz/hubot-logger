@@ -106,7 +106,10 @@ module.exports = (robot) ->
     log_response @message.user.room, strings...
     response_orig.reply.call @, strings...
 
-  # Setup a very minimalistic Connect server for viewing logs
+  ####################
+  ## HTTP interface ##
+  ####################
+
   connect = Connect()
   connect.use Connect.basicAuth(process.env.LOG_HTTP_USER || 'logs', process.env.LOG_HTTP_PASS || 'changeme')
   connect.use Connect.bodyParser()
@@ -251,7 +254,10 @@ module.exports = (robot) ->
       robot.send direct_user(msg.message.user.id, msg.message.user.room), logs_formatted.join("\n")
 
 
-## Logging helpers
+####################
+##    Helpers     ##
+####################
+
 # Converts date into a string formatted YYYYMMDD
 date_id = (date=moment())->
   date = moment(date) if date instanceof Date
@@ -523,7 +529,10 @@ log_message = (redis, robot, response) ->
   redis.rpush("logs:#{room}:#{date_id()}", entry)
 
 
-## Views for the Connect server
+####################
+##     Views      ##
+####################
+
 views =
   index: """
     <!DOCTYPE html>
