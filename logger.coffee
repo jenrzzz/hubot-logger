@@ -185,11 +185,11 @@ module.exports = (robot) ->
   # unless we're in stealth mode
   robot.hear /.*/, (msg) ->
     room = msg.message.user.room
+    robot.logging[room] ||= {}
+    robot.brain.data.logging[room] ||= {}
     if msg.match[0].match(/(robot.name )?(start|stop) logging*/) or process.env.LOG_STEALTH
       robot.logging[room].notified = true
       return
-    robot.logging[room] ||= {}
-    robot.brain.data.logging[room] ||= {}
     if robot.brain.data.logging[room].enabled and not robot.logging[room].notified
       msg.send "I'm logging messages in #{room} at " +
                  "http://#{OS.hostname()}:#{process.env.LOG_HTTP_PORT || 8081}/" +
