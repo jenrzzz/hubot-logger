@@ -439,9 +439,11 @@ enable_logging = (robot, redis, response) ->
             "#{response.message.user.name || response.message.user.id} restarted logging."),
             response.message.user.room)
 
-  response.reply "I will log messages in #{response.message.user.room} at " +
+  # Fall back to user name if no room, or "Unknown"
+  room = response.message.user.room || response.message.user.name || response.message.user.id || "Unknown"
+  response.reply "I will log messages in #{room} at " +
                  "http://#{OS.hostname()}:#{process.env.LOG_HTTP_PORT || 8081}/" +
-                 "logs/#{response.message.user.room}/#{date_id()} from now on.\n" +
+                 "logs/#{encodeURIComponent(room)}/#{date_id()} from now on.\n" +
                  "Say `#{robot.name} stop logging forever' to disable logging indefinitely."
   robot.brain.save()
 
