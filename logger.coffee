@@ -193,7 +193,7 @@ module.exports = (robot) ->
     if robot.brain.data.logging[room].enabled and not robot.logging[room].notified
       msg.send "I'm logging messages in #{room} at " +
                  "http://#{OS.hostname()}:#{process.env.LOG_HTTP_PORT || 8081}/" +
-                 "logs/#{room}/#{date_id()}\n" +
+                 "logs/#{encodeURIComponent(room)}/#{date_id()}\n" +
                  "Say `#{robot.name} stop logging forever' to disable logging indefinitely."
       robot.logging[room].notified = true
 
