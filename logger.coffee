@@ -123,7 +123,7 @@ module.exports = (robot) ->
     app.get '/logs/view', (req, res) ->
       res.statusCode = 200
       res.setHeader 'Content-Type', 'text/html'
-      if not (req.query.start || req.query.end)
+      if not (req.query.start && req.query.end)
         res.end '<strong>No start or end date provided</strong>'
       m_start = parseInt(req.query.start)
       m_end   = parseInt(req.query.end)
