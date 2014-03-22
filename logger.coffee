@@ -325,7 +325,7 @@ format_logs_for_html = (logs, presence=true) ->
                           <p>#{l.time}</p>
                         </div>
                         <div class="span10">
-                          <p><span class="username">#{l.from}</span> joined</p>
+                          <p><span class="username">#{escapeHTML(l.from)}</span> joined</p>
                         </div>
                       </div>
                     """
@@ -335,7 +335,7 @@ format_logs_for_html = (logs, presence=true) ->
                           <p>#{l.time}</p>
                         </div>
                         <div class="span10">
-                          <p><span class="username">#{l.from}</span> left</p>
+                          <p><span class="username">#{escapeHTML(l.from)}</span> left</p>
                         </div>
                       </div>
                     """
@@ -345,7 +345,7 @@ format_logs_for_html = (logs, presence=true) ->
                           <p>#{l.time}</p>
                         </div>
                         <div class="span10">
-                          <p>&lt;<span class="username">#{l.from}</span>&gt;&nbsp;#{l.message}</p>
+                          <p>&lt;<span class="username">#{escapeHTML(l.from)}</span>&gt;&nbsp;#{escapeHTML(l.message)}</p>
                         </div>
                       </div>
                    """
@@ -530,6 +530,8 @@ log_message = (redis, robot, response) ->
   room = response.message.user.room || 'general'
   redis.rpush("logs:#{room}:#{date_id()}", entry)
 
+escapeHTML = (str) ->
+  str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 ####################
 ##     Views      ##
